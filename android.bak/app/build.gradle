@@ -1,0 +1,29 @@
+android {
+    // ...existing code...
+
+    compileOptions {
+        // Enable core library desugaring required by some plugins
+        coreLibraryDesugaringEnabled true
+
+        sourceCompatibility JavaVersion.VERSION_1_8
+        targetCompatibility JavaVersion.VERSION_1_8
+    }
+
+    // If using Kotlin, ensure jvmTarget
+    kotlinOptions {
+        jvmTarget = "1.8"
+    }
+
+    // ...existing code...
+}
+
+// ...existing code...
+
+dependencies {
+    // ...existing code...
+
+    // Add coreLibraryDesugaring dependency required by newer flutter_local_notifications
+    coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.4'
+
+    // ...existing code...
+}

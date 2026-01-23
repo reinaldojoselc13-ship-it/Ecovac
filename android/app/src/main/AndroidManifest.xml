@@ -1,0 +1,63 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Define los permisos que la aplicación necesita para funcionar correctamente. -->
+
+    <!-- Permite que la aplicación se conecte a internet. Esencial para servicios en la nube como Supabase. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    
+    <!-- Permite a la aplicación enviar notificaciones push a los usuarios, necesario en versiones recientes de Android. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!-- Contenedor principal para todos los componentes de la aplicación. -->
+    <application
+        android:label="ecovac"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher">
+        
+        <!-- Actividad principal de la aplicación, es la primera pantalla que se carga. -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            
+            <!-- 
+              Especifica un tema de Android para aplicar a esta Actividad tan pronto como el proceso de Android haya comenzado.
+              Este tema es visible para el usuario mientras se inicializa la interfaz de Flutter. Después de eso, este tema continúa
+              determinando el fondo de la ventana detrás de la interfaz de Flutter.
+            -->
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            
+            <!-- Filtro de intención que define esta actividad como el punto de entrada principal de la aplicación. -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        
+        <!-- No elimines los metadatos a continuación.
+             Son utilizados por la herramienta Flutter para generar el archivo GeneratedPluginRegistrant.java,
+             que registra los plugins nativos utilizados en el proyecto. -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+    </application>
+
+    <!-- 
+      Se utiliza para consultar qué actividades pueden procesar texto.
+      Esto es usado por el motor de Flutter en `io.flutter.plugin.text.ProcessTextPlugin`
+      para integrarse con las funcionalidades de procesamiento de texto del sistema operativo.
+    -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+</manifest>
