@@ -94,16 +94,17 @@ class _LoginPageState extends State<LoginPage> {
         }
 
         if (staffRow == null) {
-          // Crear una fila mínima para este usuario (no dar admin por defecto)
+          // Crear una fila mínima para este usuario (siempre como veterinario por defecto)
           final up = {
               'id': user.id,
-              'nombres': user.email ?? user.id,
-              'telefono': null,
+              'nombres': user.userMetadata?['nombres'] ?? user.email?.split('@')[0] ?? 'Usuario',
+              'apellidos': user.userMetadata?['apellidos'] ?? '',
+              'email': user.email,
+              'telefono': user.userMetadata?['telefono'],
               'active': true,
-              // Marcar admin si el usuario seleccionó Administrador
-              'is_admin': _userType == 'Administrador' ? true : false,
-              // Usar nombres de roles coherentes con la base: 'administrador'/'veterinario'
-              'role': _userType == 'Administrador' ? 'administrador' : 'veterinario'
+              // Por defecto no es administrador, el rol debe ser asignado manualmente
+              'is_admin': false,
+              'role': 'veterinario'
             };
           try {
             final ins = await client.from('staff').upsert(up).select().maybeSingle();
@@ -120,14 +121,28 @@ class _LoginPageState extends State<LoginPage> {
           }
         }
 
-        // Determinar si el usuario es administrador
+        // Determinar el rol real del usuario desde la base de datos
         final roleVal = (staffRow['role'] ?? '').toString().toLowerCase();
         final isAdmin = (staffRow['is_admin'] == true) || roleVal == 'admin' || roleVal == 'administrador';
         final wantsAdmin = _userType == 'Administrador';
-
+        
+        // Validar que el rol seleccionado coincida con el rol real del usuario
         if (wantsAdmin && !isAdmin) {
           if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Acceso denegado: no tiene privilegios de administrador')));
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Acceso denegado: su perfil no es de administrador. Seleccione "Veterinario".'),
+            backgroundColor: Colors.red,
+          ));
+          await Supabase.instance.client.auth.signOut();
+          return;
+        }
+        
+        if (!wantsAdmin && isAdmin) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('Acceso denegado: su perfil es de administrador. Seleccione "Administrador".'),
+            backgroundColor: Colors.red,
+          ));
           await Supabase.instance.client.auth.signOut();
           return;
         }
@@ -164,165 +179,277 @@ class _LoginPageState extends State<LoginPage> {
 
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Top curved header
-            Stack(
-              alignment: Alignment.center,
+      body: SafeArea(
+        child: SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 30),
+            child: Column(
               children: [
+                const SizedBox(height: 60),
+                
+                // Logo
                 Container(
-                  height: size.height * 0.33,
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF0E7C76),
-                    borderRadius: BorderRadius.only(
-                      bottomLeft: Radius.circular(40),
-                      bottomRight: Radius.circular(40),
-                    ),
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF10B981),
+                    borderRadius: BorderRadius.circular(30),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF10B981).withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: const Icon(
+                    Icons.pets,
+                    size: 60,
+                    color: Colors.white,
                   ),
                 ),
-                Positioned(
-                  top: 60,
-                  child: Column(
-                    children: const [
-                      CircleAvatar(
-                        radius: 36,
-                        backgroundColor: Colors.white,
-                        child: Icon(Icons.pets, size: 40, color: Color(0xFF0E7C76)),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'ECOVAC',
+                
+                const SizedBox(height: 40),
+                
+                // Title
+                const Text(
+                  'ECOVAC',
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF10B981),
+                  ),
+                ),
+                
+                const SizedBox(height: 8),
+                
+                const Text(
+                  'Sistema de Gestión de Vacunación',
+                  style: TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey,
+                  ),
+                ),
+                
+                const SizedBox(height: 60),
+                  
+                  // Form
+                  Form(
+                    key: _formKey,
+                    child: Column(
+                      children: [
+                        // Email field
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: TextFormField(
+                            controller: _userController,
+                            decoration: const InputDecoration(
+                              labelText: 'Correo Electrónico',
+                              hintText: 'ejemplo@correo.com',
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                              prefixIcon: Icon(Icons.email, color: Color(0xFF10B981)),
+                              labelStyle: TextStyle(color: Color(0xFF10B981)),
+                              hintStyle: TextStyle(color: Colors.grey),
+                            ),
+                            validator: _validateUser,
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 20),
+                        
+                        // Password field
+                        Container(
+                          decoration: BoxDecoration(
+                            color: Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.grey.shade300),
+                          ),
+                          child: TextFormField(
+                            controller: _passwordController,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              labelText: 'Contraseña',
+                              hintText: '••••••••',
+                              border: InputBorder.none,
+                              contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 20),
+                              prefixIcon: Icon(Icons.lock, color: Color(0xFF10B981)),
+                              labelStyle: TextStyle(color: Color(0xFF10B981)),
+                              hintStyle: TextStyle(color: Colors.grey),
+                            ),
+                            validator: _validatePassword,
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 30),
+                        
+                        // Role selection
+                        const Text(
+                          'Tipo de Usuario',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.black87,
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 12),
+                        
+                        Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _userType = 'Veterinario'),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  decoration: BoxDecoration(
+                                    color: _userType == 'Veterinario' 
+                                        ? const Color(0xFF10B981) 
+                                        : Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _userType == 'Veterinario' 
+                                          ? const Color(0xFF10B981) 
+                                          : Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.person,
+                                        color: _userType == 'Veterinario' 
+                                            ? Colors.white 
+                                            : Colors.grey.shade600,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Veterinario',
+                                        style: TextStyle(
+                                          color: _userType == 'Veterinario' 
+                                              ? Colors.white 
+                                              : Colors.grey.shade600,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _userType = 'Administrador'),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  decoration: BoxDecoration(
+                                    color: _userType == 'Administrador' 
+                                        ? const Color(0xFF10B981) 
+                                        : Colors.grey.shade100,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(
+                                      color: _userType == 'Administrador' 
+                                          ? const Color(0xFF10B981) 
+                                          : Colors.grey.shade300,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.admin_panel_settings,
+                                        color: _userType == 'Administrador' 
+                                            ? Colors.white 
+                                            : Colors.grey.shade600,
+                                        size: 20,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Text(
+                                        'Administrador',
+                                        style: TextStyle(
+                                          color: _userType == 'Administrador' 
+                                              ? Colors.white 
+                                              : Colors.grey.shade600,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        
+                        const SizedBox(height: 40),
+                        
+                        // Login button
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF10B981),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 0,
+                            ),
+                            onPressed: _loading ? null : _signIn,
+                            child: _loading
+                                ? const CircularProgressIndicator(
+                                    color: Colors.white,
+                                    strokeWidth: 3,
+                                  )
+                                : const Text(
+                                    'Iniciar Sesión',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 60),
+                  
+                  // Footer
+                  Column(
+                    children: [
+                      const Text(
+                        'Versión 1.0.0',
                         style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        '© 2024 ECOVAC. Todos los derechos reservados.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
                         ),
                       ),
                     ],
                   ),
-                ),
-                Positioned(
-                  bottom: 18,
-                  child: Text(
-                    'Inicio de Sesión',
-                    style: const TextStyle(color: Color.fromRGBO(255,255,255,0.95), fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                )
-              ],
-            ),
-
-            const SizedBox(height: 18),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    // Tipo de usuario dropdown (styled like image)
-                    const Text('TIPO DE USUARIO', style: TextStyle(color: Colors.black54, fontSize: 12)),
-                    const SizedBox(height: 6),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
-                      decoration: BoxDecoration(
-                        color: Colors.grey.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey.shade300),
-                      ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<String>(
-                          value: _userType,
-                          items: const [
-                            DropdownMenuItem(value: 'Veterinario', child: Text('Veterinario')),
-                            DropdownMenuItem(value: 'Administrador', child: Text('Administrador')),
-                          ],
-                          onChanged: (v) => setState(() => _userType = v ?? 'Usuario'),
-                          icon: const Icon(Icons.arrow_drop_down),
-                          isExpanded: true,
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    const Text('USUARIO', style: TextStyle(color: Colors.black54, fontSize: 12)),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _userController,
-                      decoration: InputDecoration(
-                        hintText: 'Email',
-                        filled: true,
-                        fillColor: Colors.grey.shade100,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                      validator: _validateUser,
-                    ),
-
-                    const SizedBox(height: 12),
-                    const Text('CONTRASEÑA:', style: TextStyle(color: Colors.black54, fontSize: 12)),
-                    const SizedBox(height: 6),
-                    TextFormField(
-                      controller: _passwordController,
-                      obscureText: true,
-                      decoration: InputDecoration(
-                        hintText: '***************',
-                        filled: true,
-                        fillColor: Colors.grey.shade100,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                      ),
-                      validator: _validatePassword,
-                    ),
-
-                    const SizedBox(height: 18),
-
-                    // Decorative row (neutral icons) — estilo académico: elementos UI decorativos.
-                    SizedBox(
-                      height: 100,
-                      child: Center(
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: const [
-                            CircleAvatar(radius: 28, backgroundColor: Colors.white, child: Icon(Icons.person, size: 28)),
-                            SizedBox(width: 8),
-                            CircleAvatar(radius: 28, backgroundColor: Colors.white, child: Icon(Icons.work, size: 28)),
-                            SizedBox(width: 8),
-                            CircleAvatar(radius: 28, backgroundColor: Colors.white, child: Icon(Icons.group, size: 28)),
-                            SizedBox(width: 8),
-                            CircleAvatar(radius: 28, backgroundColor: Colors.white, child: Icon(Icons.business, size: 28)),
-                          ],
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(height: 10),
-
-                    // Ingresar button
-                    SizedBox(
-                      height: 52,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0E7C76),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                        ),
-                        onPressed: _loading ? null : _signIn,
-                        child: _loading
-                            ? const CircularProgressIndicator(color: Colors.white)
-                            : const Text('INGRESAR', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
-                      ),
-                    ),
-
-                    const SizedBox(height: 20),
-                  ],
-                ),
+                  
+                  const SizedBox(height: 40),
+                ],
               ),
             ),
-          ],
+          ),
         ),
-      ),
     );
   }
 }

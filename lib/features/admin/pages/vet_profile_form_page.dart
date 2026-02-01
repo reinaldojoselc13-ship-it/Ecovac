@@ -86,9 +86,9 @@ class _VetProfileFormPageState extends State<VetProfileFormPage> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             const Icon(Icons.warning_amber_rounded, size: 56, color: Colors.amber),
             const SizedBox(height: 8),
-            const Text('¿Está seguro que desea registrar este perfil?', textAlign: TextAlign.center, style: TextStyle(fontSize: 18)),
+            Text(widget.initial == null ? '¿Está seguro que desea registrar este perfil?' : '¿Está seguro que desea guardar los cambios en este perfil?', textAlign: TextAlign.center, style: const TextStyle(fontSize: 18)),
             const SizedBox(height: 8),
-            const Text('Una vez registrado podrá acceder a funciones del sistema según su rol.'),
+            Text(widget.initial == null ? 'Una vez registrado podrá acceder a funciones del sistema según su rol.' : 'Los cambios serán aplicados al perfil del usuario.'),
             const SizedBox(height: 12),
             Row(mainAxisAlignment: MainAxisAlignment.spaceEvenly, children: [
               ElevatedButton(style: ElevatedButton.styleFrom(backgroundColor: Colors.red), onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancelar')),
@@ -134,9 +134,9 @@ class _VetProfileFormPageState extends State<VetProfileFormPage> {
           final meta = {
             'nombres': _nombres.text.trim(),
             'apellidos': _apellidos.text.trim(),
-            'cedula_identidad': _cedula.text.trim(),
             'cedula': _cedula.text.trim(),
             'email': email,
+            'role': _selectedRole.toLowerCase() == 'administrador' ? 'administrador' : 'veterinario',
           };
           uid = await widget.api.signUpAuthUser(email, password, userMetadata: meta);
         } catch (e) {
@@ -194,14 +194,29 @@ class _VetProfileFormPageState extends State<VetProfileFormPage> {
     }
 
     if (!mounted) return;
-    Navigator.of(context).pop();
+    
+    // Mostrar mensaje de éxito
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(widget.initial == null ? 'Perfil registrado exitosamente' : 'Perfil actualizado exitosamente'),
+        backgroundColor: Colors.green,
+      ),
+    );
+    
+    // Navegar directamente al inicio de administradores
+    Navigator.of(context).pushReplacementNamed('/admin');
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(widget.initial == null ? 'Registrar Perfil' : 'Editar Perfil', style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          widget.readOnly 
+            ? 'Ver Perfil' 
+            : (widget.initial == null ? 'Registrar Perfil' : 'Editar Perfil'), 
+          style: const TextStyle(fontWeight: FontWeight.bold)
+        ),
         backgroundColor: const Color(0xFF9DBFC0),
         centerTitle: true,
       ),
@@ -220,6 +235,7 @@ class _VetProfileFormPageState extends State<VetProfileFormPage> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _emailController,
+                    enabled: !widget.readOnly,
                     validator: (v) {
                       if (v == null || v.isEmpty) return 'Ingrese correo';
                       if (!_isValidEmail(v.trim())) return 'Correo con formato inválido';
@@ -228,7 +244,7 @@ class _VetProfileFormPageState extends State<VetProfileFormPage> {
                     decoration: InputDecoration(
                       hintText: 'correo@dominio.com',
                       filled: true,
-                      fillColor: Colors.grey.shade300,
+                      fillColor: widget.readOnly ? Colors.grey.shade200 : Colors.grey.shade300,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     ),
@@ -239,11 +255,12 @@ class _VetProfileFormPageState extends State<VetProfileFormPage> {
                   TextFormField(
                     controller: _passwordController,
                     obscureText: true,
+                    enabled: !widget.readOnly,
                     validator: (v) => (v == null || v.isEmpty) ? 'Ingrese contraseña' : null,
                     decoration: InputDecoration(
                       hintText: 'Contraseña',
                       filled: true,
-                      fillColor: Colors.grey.shade300,
+                      fillColor: widget.readOnly ? Colors.grey.shade200 : Colors.grey.shade300,
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     ),
@@ -253,7 +270,7 @@ class _VetProfileFormPageState extends State<VetProfileFormPage> {
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+                    decoration: BoxDecoration(color: widget.readOnly ? Colors.grey.shade200 : Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
                     child: DropdownButtonHideUnderline(
                       child: DropdownButton<String>(
                         value: _selectedRole,
@@ -261,7 +278,7 @@ class _VetProfileFormPageState extends State<VetProfileFormPage> {
                           DropdownMenuItem(value: 'Veterinario', child: Text('Veterinario')),
                           DropdownMenuItem(value: 'Administrador', child: Text('Administrador')),
                         ],
-                        onChanged: (v) => setState(() => _selectedRole = v ?? 'Veterinario'),
+                        onChanged: widget.readOnly ? null : (v) => setState(() => _selectedRole = v ?? 'Veterinario'),
                         isExpanded: true,
                       ),
                     ),
@@ -398,7 +415,7 @@ class _VetProfileFormPageState extends State<VetProfileFormPage> {
                     child: ElevatedButton(
                       style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF0E7C76), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)), padding: const EdgeInsets.symmetric(horizontal: 36, vertical: 14)),
                       onPressed: _save,
-                      child: const Text('REGISTRAR', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+                      child: Text(widget.initial == null ? 'REGISTRAR' : 'GUARDAR', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
                     ),
                   ),
                 const SizedBox(height: 18),
@@ -420,11 +437,12 @@ class _VetProfileFormPageState extends State<VetProfileFormPage> {
   Widget _roundedField(TextEditingController controller, {String hint = ''}) {
     return TextFormField(
       controller: controller,
-      validator: (v) => (controller == _nombres || controller == _cedula) ? (v == null || v.isEmpty ? 'Ingrese valor' : null) : null,
+      enabled: !widget.readOnly,
+      validator: (v) => (controller == _nombres || controller == _cedula) ? (v == null || v.isEmpty) ? 'Ingrese valor' : null : null,
       decoration: InputDecoration(
         hintText: hint,
         filled: true,
-        fillColor: Colors.grey.shade300,
+        fillColor: widget.readOnly ? Colors.grey.shade200 : Colors.grey.shade300,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
         contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       ),
@@ -435,14 +453,18 @@ class _VetProfileFormPageState extends State<VetProfileFormPage> {
     final selected = _sector == value;
     return Expanded(
       child: InkWell(
-        onTap: () => setState(() => _sector = value),
+        onTap: widget.readOnly ? null : () => setState(() => _sector = value),
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: selected ? Colors.green.shade50 : Colors.transparent, border: Border.all(color: selected ? Colors.green : Colors.black26)),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10), 
+            color: widget.readOnly ? Colors.grey.shade100 : (selected ? Colors.green.shade50 : Colors.transparent), 
+            border: Border.all(color: widget.readOnly ? Colors.grey.shade300 : (selected ? Colors.green : Colors.black26))
+          ),
           child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: selected ? Colors.green : Colors.black45),
+            Icon(selected ? Icons.radio_button_checked : Icons.radio_button_unchecked, color: widget.readOnly ? Colors.grey.shade400 : (selected ? Colors.green : Colors.black45)),
             const SizedBox(width: 6),
-            Text(value),
+            Text(value, style: TextStyle(color: widget.readOnly ? Colors.grey.shade600 : Colors.black)),
           ]),
         ),
       ),

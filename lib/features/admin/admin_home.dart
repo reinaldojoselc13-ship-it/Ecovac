@@ -23,24 +23,51 @@ class AdminHome extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => JornadasProvider(api)..loadCounts()),
       ],
       child: Scaffold(
-        appBar: AppBar(
-          title: const Text('Admin'),
-          leading: IconButton(
-            icon: const Icon(Icons.exit_to_app),
-            tooltip: 'Cerrar sesión',
-            onPressed: () async {
-              final navigator = Navigator.of(context);
-              try {
-                await Supabase.instance.client.auth.signOut();
-              } catch (e) {
-                // ignore: avoid_print
-                print('Error signing out: $e');
-              }
-              navigator.pushReplacementNamed('/login');
-            },
+        backgroundColor: Colors.white,
+        body: SafeArea(
+          child: Stack(
+            children: [
+              // Main content
+              const AdminDashboardPage(),
+              // Logout button in top right
+              Positioned(
+                top: 16,
+                right: 16,
+                child: GestureDetector(
+                  onTap: () async {
+                    final navigator = Navigator.of(context);
+                    try {
+                      await Supabase.instance.client.auth.signOut();
+                    } catch (e) {
+                      // ignore: avoid_print
+                      print('Error signing out: $e');
+                    }
+                    navigator.pushReplacementNamed('/login');
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.exit_to_app,
+                      color: Color(0xFF10B981), // Emerald Green
+                      size: 24,
+                    ),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
-        body: const AdminDashboardPage(),
         bottomNavigationBar: _AdminBottomNav(api),
       ),
     );

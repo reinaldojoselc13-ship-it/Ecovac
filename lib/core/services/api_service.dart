@@ -36,7 +36,7 @@ class ApiService {
   Future<int> getJornadasCount() async {
     if (_client == null) return 0;
     try {
-      final res = await _client!.from('jornadas').select();
+      final res = await _client!.from('jornada').select();
       return (res as List).length;
     } catch (_) {
       return 0;
@@ -46,53 +46,101 @@ class ApiService {
   Future<List<Map<String, dynamic>>> getJornadas() async {
     if (_client == null) return [];
     try {
-      final res = await _client!.from('jornadas').select('*');
+      final res = await _client!.from('jornada').select('*');
       return List<Map<String, dynamic>>.from(res as List);
     } catch (_) {
       return [];
     }
   }
 
-  /// Stream realtime de la tabla `jornadas` (supabase realtime)
+  /// Stream realtime de la tabla `jornada` (supabase realtime)
   Stream<List<Map<String, dynamic>>> streamJornadas() {
     if (_client == null) return const Stream.empty();
-    return _client!.from('jornadas').stream(primaryKey: ['id']).order('fecha').map((e) => List<Map<String, dynamic>>.from(e as List));
+    return _client!.from('jornada').stream(primaryKey: ['id']).order('fecha').map((e) => List<Map<String, dynamic>>.from(e as List));
   }
 
   /// Crea una jornada. Si existe una función SQL `create_jornada_tx` la
   /// invoca para asegurar transaccionalidad; en caso contrario realiza un
   /// insert directo y retorna la fila creada.
   Future<Map<String, dynamic>?> createJornada(Map<String, dynamic> data) async {
-    if (_client == null) return null;
+    if (_client == null) throw Exception('Supabase client not configured. Configure SUPABASE_URL and SUPABASE_ANON_KEY.');
+    
     try {
+      print('ApiService.createJornada: intentando crear jornada con datos: ${data.keys.toList()}');
+      
+      // Normalizar los datos para que coincidan con la estructura de la tabla
+      final normalizedData = _normalizeJornadaData(data);
+      print('ApiService.createJornada: datos normalizados: ${normalizedData.keys.toList()}');
+      
       // Intentar función segura en DB
       try {
-        final res = await _client!.rpc('create_jornada_tx', params: {'payload': data});
-        if (res != null) return Map<String, dynamic>.from((res as List).first as Map);
-      } catch (_) {
-        // fallback: insert directo
+        final res = await _client!.rpc('create_jornada_tx', params: {'payload': normalizedData});
+        if (res != null) {
+          print('ApiService.createJornada: creación exitosa via RPC');
+          return Map<String, dynamic>.from((res as List).first as Map);
+        }
+      } catch (e) {
+        print('ApiService.createJornada: RPC falló, intentando insert directo: $e');
       }
 
-      final res = await _client!.from('jornadas').insert(data).select().maybeSingle();
-      if (res == null) return null;
+      // Fallback: insert directo
+      final res = await _client!.from('jornada').insert(normalizedData).select().maybeSingle();
+      if (res == null) {
+        print('ApiService.createJornada: insert returned null - posible problema de RLS/permisos');
+        throw Exception('Error: La inserción devolvió null. Verifica permisos en la tabla jornada.');
+      }
+      
+      print('ApiService.createJornada: creación exitosa via insert directo, id: ${res['id']}');
       return Map<String, dynamic>.from(res as Map);
+    } on PostgrestException catch (e) {
+      print('ApiService.createJornada PostgrestException: message=${e.message}, details=${e.details}, hint=${e.hint}, code=${e.code}');
+      throw Exception('Error de base de datos: ${e.message}. Detalles: ${e.details}');
     } catch (e) {
-      // Loguear error para ayudar a depuración
-      // ignore: avoid_print
       print('ApiService.createJornada error: $e');
-      return null;
+      rethrow;
     }
   }
 
+  /// Normaliza los datos de jornada para que coincidan con la estructura de la tabla
+  Map<String, dynamic> _normalizeJornadaData(Map<String, dynamic> data) {
+    final normalized = Map<String, dynamic>.from(data);
+    
+    // Convertir staff a staff_ids si es necesario
+    if (data.containsKey('staff') && !data.containsKey('staff_ids')) {
+      normalized['staff_ids'] = data['staff'];
+      normalized.remove('staff');
+    }
+    
+    // Asegurar que vacunas sea jsonb
+    if (data.containsKey('vacunas') && data['vacunas'] is List) {
+      normalized['vacunas'] = data['vacunas'];
+    }
+    
+    // Convertir fecha a timestamptz si es string
+    if (data['fecha'] is String) {
+      try {
+        final dateStr = data['fecha'] as String;
+        if (dateStr.contains('T')) {
+          normalized['fecha'] = dateStr; // Ya es ISO8601
+        } else {
+          normalized['fecha'] = '${dateStr}T00:00:00Z'; // Agregar tiempo
+        }
+      } catch (e) {
+        print('ApiService._normalizeJornadaData: error procesando fecha: $e');
+      }
+    }
+    
+    return normalized;
+  }
 
   Future<void> updateJornada(String id, Map<String, dynamic> data) async {
     if (_client == null) return;
-    await _client!.from('jornadas').update(data).eq('id', id);
+    await _client!.from('jornada').update(data).eq('id', id);
   }
 
   Future<void> deleteJornada(String id) async {
     if (_client == null) return;
-    await _client!.from('jornadas').delete().eq('id', id);
+    await _client!.from('jornada').delete().eq('id', id);
   }
 
   /// Gestión de perfiles de personal — tabla 'staff' (neutro).
@@ -114,37 +162,43 @@ class ApiService {
 
   /// Crea un perfil de staff y devuelve la fila creada (o null en error).
   Future<Map<String, dynamic>?> createStaffProfile(Map<String, dynamic> data) async {
-    if (_client == null) return null;
+    if (_client == null) throw Exception('Supabase client not configured. Configure SUPABASE_URL and SUPABASE_ANON_KEY.');
+    
     try {
+      // Debug: imprimir los datos que se van a insertar
+      print('ApiService.createStaffProfile: intentando insertar datos: ${data.keys.toList()}');
+      
       // Intentamos insert directo primero
       try {
         final res = await _client!.from('staff').insert(data).select().maybeSingle();
-        if (res != null) return Map<String, dynamic>.from(res as Map);
+        if (res != null) {
+          print('ApiService.createStaffProfile: insert exitoso');
+          return Map<String, dynamic>.from(res as Map);
+        }
         // Si res == null puede ser por RLS/permissions; intentaremos upsert
-        // ignore: avoid_print
         print('ApiService.createStaffProfile: insert returned null (possible permission/RLS issue), trying upsert');
       } on PostgrestException catch (e) {
         // Mostrar detalle para diagnóstico y seguir intentando con upsert
-        // ignore: avoid_print
         print('ApiService.createStaffProfile PostgrestException on insert: message=${e.message}, details=${e.details}, hint=${e.hint}, code=${e.code}');
       }
 
       // Intentar upsert (on conflict by id) — útil cuando ya hemos generado id desde Auth
       try {
+        print('ApiService.createStaffProfile: intentando upsert con id: ${data['id']}');
         final up = await _client!.from('staff').upsert(data, onConflict: 'id').select().maybeSingle();
-        if (up != null) return Map<String, dynamic>.from(up as Map);
-        // ignore: avoid_print
+        if (up != null) {
+          print('ApiService.createStaffProfile: upsert exitoso');
+          return Map<String, dynamic>.from(up as Map);
+        }
         print('ApiService.createStaffProfile: upsert returned null (possible RLS/permission issue)');
         return null;
       } on PostgrestException catch (e) {
-        // ignore: avoid_print
         print('ApiService.createStaffProfile PostgrestException on upsert: message=${e.message}, details=${e.details}, hint=${e.hint}, code=${e.code}');
-        return null;
+        throw Exception('Error de base de datos: ${e.message}. Detalles: ${e.details}');
       }
     } catch (e) {
-      // ignore: avoid_print
       print('ApiService.createStaffProfile exception: $e');
-      return null;
+      rethrow;
     }
   }
 
@@ -158,6 +212,45 @@ class ApiService {
       // ignore: avoid_print
       print('ApiService.updateStaffProfile error: $e');
       rethrow;
+    }
+  }
+
+  Future<bool> deleteStaffProfile(String id) async {
+    if (_client == null) return false;
+    try {
+      try {
+        await _client!.from('perfil').delete().or('id.eq.$id,user_id.eq.$id');
+      } catch (e) {
+        print('ApiService.deleteStaffProfile: error deleting perfil: $e');
+      }
+
+      try {
+        await _client!.from('device_authorizations').delete().eq('staff_id', id);
+      } catch (e) {
+        print('ApiService.deleteStaffProfile: error deleting device_authorizations: $e');
+      }
+
+      await _client!.from('staff').delete().eq('id', id);
+      return true;
+    } on PostgrestException catch (e) {
+      print('ApiService.deleteStaffProfile PostgrestException: message=${e.message}, details=${e.details}, hint=${e.hint}, code=${e.code}');
+      return false;
+    } catch (e) {
+      print('ApiService.deleteStaffProfile error: $e');
+      return false;
+    }
+  }
+
+  Future<bool> deleteAuthUserAndData(String userId) async {
+    if (_client == null) return false;
+    try {
+      final res = await _client!.functions.invoke('delete_user', body: {'user_id': userId});
+      final data = res.data;
+      if (data is Map && data['ok'] == true) return true;
+      return false;
+    } catch (e) {
+      print('ApiService.deleteAuthUserAndData error: $e');
+      return false;
     }
   }
 
@@ -319,18 +412,24 @@ class ApiService {
 
   /// Inserta un lote y devuelve la fila creada o lanza excepción en error.
   Future<Map<String, dynamic>?> createVacuna(Map<String, dynamic> data) async {
-    if (_client == null) return null;
+    if (_client == null) throw Exception('Supabase client not configured. Configure SUPABASE_URL and SUPABASE_ANON_KEY.');
+    
     try {
       final payload = _normalizeVacuna(data);
+      print('ApiService.createVacuna: intentando insertar payload con campos: ${payload.keys.toList()}');
+      
       final res = await _client!.from('lotevacuna').insert(payload).select().maybeSingle();
       if (res == null) {
-        // ignore: avoid_print
-        print('ApiService.createVacuna: insert returned null');
-        return null;
+        print('ApiService.createVacuna: insert returned null - posible problema de RLS/permisos');
+        throw Exception('Error: La inserción devolvió null. Verifica permisos en la tabla lotevacuna.');
       }
+      
+      print('ApiService.createVacuna: inserción exitosa, id: ${res['id']}');
       return Map<String, dynamic>.from(res as Map);
+    } on PostgrestException catch (e) {
+      print('ApiService.createVacuna PostgrestException: message=${e.message}, details=${e.details}, hint=${e.hint}, code=${e.code}');
+      throw Exception('Error de base de datos: ${e.message}. Detalles: ${e.details}');
     } catch (e) {
-      // ignore: avoid_print
       print('ApiService.createVacuna error: $e');
       rethrow;
     }
@@ -365,8 +464,10 @@ class ApiService {
   // Helper: map form keys to actual DB columns for `lotevacuna`.
   Map<String, dynamic> _normalizeVacuna(Map<String, dynamic> data) {
     final Map<String, dynamic> out = {};
-    // nombre
+    
+    // Campos básicos
     if (data['nombre'] != null && data['nombre'].toString().isNotEmpty) out['nombre'] = data['nombre'];
+    
     // descripcion: prefer explicit descripcion, fallback to laboratorio/proveedor
     if (data['descripcion'] != null && data['descripcion'].toString().isNotEmpty) {
       out['descripcion'] = data['descripcion'];
@@ -376,27 +477,71 @@ class ApiService {
       if (data['proveedor'] != null && data['proveedor'].toString().isNotEmpty) parts.add('Proveedor: ${data['proveedor']}');
       if (parts.isNotEmpty) out['descripcion'] = parts.join(' | ');
     }
+    
     // cantidad: accept cantidad_frascos or cantidad
     try {
-      if (data['cantidad_frascos'] != null && data['cantidad_frascos'].toString().isNotEmpty) {
-        out['cantidad'] = int.tryParse(data['cantidad_frascos'].toString()) ?? 0;
-      } else if (data['cantidad'] != null) {
+      if (data['cantidad'] != null && data['cantidad'].toString().isNotEmpty) {
         out['cantidad'] = int.tryParse(data['cantidad'].toString()) ?? 0;
+      } else if (data['cantidad_frascos'] != null && data['cantidad_frascos'].toString().isNotEmpty) {
+        out['cantidad'] = int.tryParse(data['cantidad_frascos'].toString()) ?? 0;
       }
     } catch (_) {}
-    // lote
-    if (data['n_lote'] != null && data['n_lote'].toString().isNotEmpty) {
-      out['lote'] = data['n_lote'];
-    } else if (data['lote'] != null && data['lote'].toString().isNotEmpty) {
+    
+    // lote: accept n_lote or lote
+    if (data['lote'] != null && data['lote'].toString().isNotEmpty) {
       out['lote'] = data['lote'];
+    } else if (data['n_lote'] != null && data['n_lote'].toString().isNotEmpty) {
+      out['lote'] = data['n_lote'];
     }
+    
     // fecha_vencimiento: accept fecha_venc or fecha_vencimiento
     if (data['fecha_venc'] != null && data['fecha_venc'].toString().isNotEmpty) {
       out['fecha_vencimiento'] = data['fecha_venc'];
     } else if (data['fecha_vencimiento'] != null && data['fecha_vencimiento'].toString().isNotEmpty) {
       out['fecha_vencimiento'] = data['fecha_vencimiento'];
     }
-
+    
+    // Campos adicionales que faltaban
+    if (data['laboratorio'] != null && data['laboratorio'].toString().isNotEmpty) {
+      out['laboratorio'] = data['laboratorio'];
+    }
+    
+    if (data['fecha_ingreso'] != null && data['fecha_ingreso'].toString().isNotEmpty) {
+      out['fecha_ingreso'] = data['fecha_ingreso'];
+    }
+    
+    if (data['n_factura'] != null && data['n_factura'].toString().isNotEmpty) {
+      out['n_factura'] = data['n_factura'];
+    }
+    
+    if (data['proveedor'] != null && data['proveedor'].toString().isNotEmpty) {
+      out['proveedor'] = data['proveedor'];
+    }
+    
+    if (data['presentacion'] != null && data['presentacion'].toString().isNotEmpty) {
+      out['presentacion'] = data['presentacion'];
+    }
+    
+    if (data['dosis_por_frasco'] != null && data['dosis_por_frasco'].toString().isNotEmpty) {
+      out['dosis_por_frasco'] = data['dosis_por_frasco'];
+    }
+    
+    if (data['cantidad_frascos'] != null && data['cantidad_frascos'].toString().isNotEmpty) {
+      out['cantidad_frascos'] = int.tryParse(data['cantidad_frascos'].toString()) ?? 0;
+    }
+    
+    // Nuevos campos para veterinarios y lotes asignados
+    if (data['veterinario_asignado_id'] != null && data['veterinario_asignado_id'].toString().isNotEmpty) {
+      out['veterinario_asignado_id'] = data['veterinario_asignado_id'];
+    }
+    
+    if (data['lote_vacuna_asignado_id'] != null && data['lote_vacuna_asignado_id'].toString().isNotEmpty) {
+      out['lote_vacuna_asignado_id'] = data['lote_vacuna_asignado_id'];
+    }
+    
+    // Debug: imprimir los campos mapeados
+    print('ApiService._normalizeVacuna: input keys=${data.keys.toList()}, output keys=${out.keys.toList()}');
+    
     return out;
   }
 

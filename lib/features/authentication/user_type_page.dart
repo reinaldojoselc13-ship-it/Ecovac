@@ -1,19 +1,6 @@
 import 'package:flutter/material.dart';
 import 'login_page.dart';
 
-// Color tokens for easy tuning (tuned to mock)
-const _kGradientStart = Color(0xFFEFA6D1); // soft pink
-const _kGradientEnd = Color(0xFFB8A9E8); // soft purple
-const _kButtonColor = Color(0xFF9FC8C8); // muted teal for pills
-
-// Layout tokens
-const _kHeaderHeightFactor = 0.46;
-const _kCircleRadius = 56.0;
-const _kTitleSize = 36.0;
-const _kButtonWidth = 280.0;
-const _kButtonHeight = 56.0;
-const _kButtonGap = 24.0;
-
 class UserTypePage extends StatelessWidget {
   const UserTypePage({super.key});
 
@@ -22,125 +9,208 @@ class UserTypePage extends StatelessWidget {
     final size = MediaQuery.of(context).size;
 
     return Scaffold(
-      backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            // Top gradient with diagonal bottom edge
-            ClipPath(
-              clipper: _DiagonalClipper(),
-              child: Container(
-                height: size.height * _kHeaderHeightFactor,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [_kGradientStart, _kGradientEnd],
-                  ),
-                ),
-                child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: const [
-                      CircleAvatar(
-                        radius: _kCircleRadius,
-                        backgroundColor: Colors.white,
-                        child: Text('ECOVAC', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22, color: Colors.black)),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 18),
-
-            // White curved container to mimic the mock's lower panel
-            Container(
-              width: double.infinity,
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.only(topLeft: Radius.circular(20), topRight: Radius.circular(20)),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 32),
-                child: Column(
-                  children: [
-                    const Text('Tipo de Usuario', style: TextStyle(fontSize: _kTitleSize, fontWeight: FontWeight.bold, color: Colors.black87)),
-                    const SizedBox(height: 8),
-                    const Text('Log in', style: TextStyle(color: Colors.black, fontSize: 12)),
-                    const SizedBox(height: 22),
-
-                    // Veterinario button (fixed width, pill style)
-                    SizedBox(
-                      width: _kButtonWidth,
-                      height: _kButtonHeight,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _kButtonColor,
-                          foregroundColor: Colors.black,
-                          elevation: 8,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          shadowColor: Colors.black26,
+      body: Container(
+        width: double.infinity,
+        height: double.infinity,
+        decoration: const BoxDecoration(
+          color: Color(0xFF10B981),
+        ),
+        child: SafeArea(
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 30),
+              child: Column(
+                children: [
+                  const SizedBox(height: 80),
+                  
+                  // Logo with white background
+                  Container(
+                    width: 140,
+                    height: 140,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(35),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 25,
+                          offset: const Offset(0, 12),
                         ),
-                        onPressed: () {
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.pets,
+                      size: 70,
+                      color: Color(0xFF10B981),
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 40),
+                  
+                  // Title
+                  const Text(
+                    'ECOVAC',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 8),
+                  
+                  const Text(
+                    'Sistema de Gestión de Vacunación',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.white70,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 80),
+                  
+                  // User type selection
+                  const Text(
+                    'Seleccionar Tipo de Usuario',
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.white,
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 40),
+                  
+                  // Veterinario button
+                  Container(
+                    width: double.infinity,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
+                        ),
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () {
                           Navigator.of(context).pushReplacement(MaterialPageRoute(
                             builder: (_) => const LoginPage(initialUserType: 'Veterinario'),
                           ));
                         },
-                        child: const Text('Veterinario'),
+                        child: const Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.person,
+                                color: Color(0xFF10B981),
+                                size: 28,
+                              ),
+                              SizedBox(width: 16),
+                              Text(
+                                'Veterinario',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF10B981),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-
-                    const SizedBox(height: _kButtonGap),
-
-                    // Administrador button
-                    SizedBox(
-                      width: _kButtonWidth,
-                      height: _kButtonHeight,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: _kButtonColor,
-                          foregroundColor: Colors.black,
-                          elevation: 8,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
-                          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                          shadowColor: Colors.black26,
+                  ),
+                  
+                  const SizedBox(height: 24),
+                  
+                  // Administrador button
+                  Container(
+                    width: double.infinity,
+                    height: 70,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 12,
+                          offset: const Offset(0, 6),
                         ),
-                        onPressed: () {
+                      ],
+                    ),
+                    child: Material(
+                      color: Colors.transparent,
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(16),
+                        onTap: () {
                           Navigator.of(context).pushReplacement(MaterialPageRoute(
                             builder: (_) => const LoginPage(initialUserType: 'Administrador'),
                           ));
                         },
-                        child: const Text('Administrador'),
+                        child: const Center(
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.admin_panel_settings,
+                                color: Color(0xFF10B981),
+                                size: 28,
+                              ),
+                              SizedBox(width: 16),
+                              Text(
+                                'Administrador',
+                                style: TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF10B981),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-
-                    const SizedBox(height: 36),
-                  ],
-                ),
+                  ),
+                  
+                  const SizedBox(height: 80),
+                  
+                  // Footer
+                  Column(
+                    children: [
+                      const Text(
+                        'Versión 1.0.0',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      const Text(
+                        '© 2026 ECOVAC. Todos los derechos reservados.',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white70,
+                        ),
+                      ),
+                    ],
+                  ),
+                  
+                  const SizedBox(height: 40),
+                ],
               ),
             ),
-          ],
+          ),
         ),
       ),
     );
   }
-}
-
-class _DiagonalClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    final path = Path();
-    path.lineTo(0, size.height - 60);
-    path.lineTo(size.width * 0.6, size.height - 20);
-    path.lineTo(size.width, size.height - 60);
-    path.lineTo(size.width, 0);
-    path.close();
-    return path;
-  }
-
-  @override
-  bool shouldReclip(covariant CustomClipper<Path> oldClipper) => false;
 }

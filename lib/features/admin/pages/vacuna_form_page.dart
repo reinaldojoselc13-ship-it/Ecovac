@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:ecovac/core/services/api_service.dart';
 import 'package:provider/provider.dart';
 import 'package:ecovac/features/admin/providers/vacunas_provider.dart';
-// no DI import required; ApiService is injected via constructor
 
 class VacunaFormPage extends StatefulWidget {
   final Map<String, dynamic>? initial;
@@ -27,6 +26,7 @@ class _VacunaFormPageState extends State<VacunaFormPage> {
   final _proveedor = TextEditingController();
   final _dosisPorFrasco = TextEditingController();
   final _cantidadFrascos = TextEditingController();
+  final _descripcion = TextEditingController();
   String _presentacion = 'Monodosis';
 
   @override
@@ -45,6 +45,7 @@ class _VacunaFormPageState extends State<VacunaFormPage> {
       _dosisPorFrasco.text = widget.initial!['dosis_por_frasco']?.toString() ?? '';
       _cantidadFrascos.text = widget.initial!['cantidad_frascos']?.toString() ?? '';
       _presentacion = widget.initial!['presentacion']?.toString() ?? _presentacion;
+      _descripcion.text = widget.initial!['descripcion']?.toString() ?? '';
     }
   }
 
@@ -61,6 +62,7 @@ class _VacunaFormPageState extends State<VacunaFormPage> {
     _proveedor.dispose();
     _dosisPorFrasco.dispose();
     _cantidadFrascos.dispose();
+    _descripcion.dispose();
     super.dispose();
   }
 
@@ -91,6 +93,7 @@ class _VacunaFormPageState extends State<VacunaFormPage> {
     final api = widget.api;
     final data = {
       'nombre': _name.text.trim(),
+      'descripcion': _descripcion.text.trim(),
       // map Código -> lote
       'lote': _codigo.text.trim().isNotEmpty ? _codigo.text.trim() : _lote.text.trim(),
       // cantidad as integer (total units)
@@ -173,6 +176,29 @@ class _VacunaFormPageState extends State<VacunaFormPage> {
               const SizedBox(height: 12),
               _field(_name, 'NOMBRE:'),
               const SizedBox(height: 12),
+              
+              // Campo de descripción
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('DESCRIPCIÓN:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 6),
+                  TextFormField(
+                    controller: _descripcion,
+                    enabled: !widget.readOnly,
+                    maxLines: 3,
+                    decoration: InputDecoration(
+                      hintText: 'Ingrese una breve descripción de la vacuna...',
+                      filled: true,
+                      fillColor: Colors.grey.shade300,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              
               _field(_lab, 'LABORATORIO:'),
               const SizedBox(height: 12),
               Row(children: [Expanded(child: _field(_fechaIngreso, 'FECHA DE INGRESO:')), const SizedBox(width: 12), Expanded(child: _field(_fechaVenc, 'FECHA DE VENCIMIENTO:'))]),

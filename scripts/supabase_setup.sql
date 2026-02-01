@@ -44,10 +44,48 @@ ALTER TABLE public.lotevacuna
 ALTER TABLE public.staff
   ADD COLUMN IF NOT EXISTS email text;
 
+-- 5) Add missing columns to lotevacuna table
+ALTER TABLE public.lotevacuna
+  ADD COLUMN IF NOT EXISTS descripcion text;
+
+ALTER TABLE public.lotevacuna
+  ADD COLUMN IF NOT EXISTS laboratorio text;
+
+ALTER TABLE public.lotevacuna
+  ADD COLUMN IF NOT EXISTS fecha_ingreso date;
+
+ALTER TABLE public.lotevacuna
+  ADD COLUMN IF NOT EXISTS n_lote text;
+
+ALTER TABLE public.lotevacuna
+  ADD COLUMN IF NOT EXISTS n_factura text;
+
+ALTER TABLE public.lotevacuna
+  ADD COLUMN IF NOT EXISTS proveedor text;
+
+ALTER TABLE public.lotevacuna
+  ADD COLUMN IF NOT EXISTS presentacion text;
+
+ALTER TABLE public.lotevacuna
+  ADD COLUMN IF NOT EXISTS dosis_por_frasco text;
+
+ALTER TABLE public.lotevacuna
+  ADD COLUMN IF NOT EXISTS cantidad_frascos integer;
+
+ALTER TABLE public.lotevacuna
+  ADD COLUMN IF NOT EXISTS veterinario_asignado_id uuid REFERENCES public.staff(id);
+
+ALTER TABLE public.lotevacuna
+  ADD COLUMN IF NOT EXISTS lote_vacuna_asignado_id uuid REFERENCES public.lotevacuna(id);
+
 -- 5) Temporary permissive RLS policies for diagnosis (REMOVE after tests)
 -- Enable RLS if not enabled
 ALTER TABLE public.perfil ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.staff ENABLE ROW LEVEL SECURITY;
+
+-- Also enable RLS for main entities
+ALTER TABLE public.lotevacuna ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.jornadas ENABLE ROW LEVEL SECURITY;
 
 -- Drop any existing permissive policy to re-create idempotently
 DO $$
@@ -63,13 +101,79 @@ CREATE POLICY allow_all ON public.perfil FOR ALL USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS allow_all_staff ON public.staff;
 CREATE POLICY allow_all_staff ON public.staff FOR ALL USING (true) WITH CHECK (true);
 
+DROP POLICY IF EXISTS allow_all_lotevacuna ON public.lotevacuna;
+CREATE POLICY allow_all_lotevacuna ON public.lotevacuna FOR ALL USING (true) WITH CHECK (true);
+
+DROP POLICY IF EXISTS allow_all_jornadas ON public.jornadas;
+CREATE POLICY allow_all_jornadas ON public.jornadas FOR ALL USING (true) WITH CHECK (true);
+
+-- 5b) SECURE RLS POLICIES (recommended for production)
+-- NOTE: These policies assume `staff.id` == `auth.uid()`.
+
+-- Helper: check if current user is admin
+CREATE OR REPLACE FUNCTION public.is_admin_user()
+RETURNS boolean
+LANGUAGE sql
+STABLE
+AS $$
+  SELECT EXISTS(
+    SELECT 1
+    FROM public.staff s
+    WHERE s.id = auth.uid()
+      AND (s.is_admin = true OR lower(coalesce(s.role, '')) IN ('admin','administrador'))
+  );
+$$;
+
+-- Replace permissive policies with secure ones (idempotent)
+
+-- PERFIL: leave as-is for now (depends on your app), but remove allow_all in production.
+
+-- STAFF
+DROP POLICY IF EXISTS staff_select_all ON public.staff;
+CREATE POLICY staff_select_all ON public.staff
+FOR SELECT TO authenticated
+USING (true);
+
+DROP POLICY IF EXISTS staff_modify_admin ON public.staff;
+CREATE POLICY staff_modify_admin ON public.staff
+FOR INSERT, UPDATE, DELETE TO authenticated
+USING (public.is_admin_user())
+WITH CHECK (public.is_admin_user());
+
+-- LOTEVACUNA
+DROP POLICY IF EXISTS lotevacuna_select_all ON public.lotevacuna;
+CREATE POLICY lotevacuna_select_all ON public.lotevacuna
+FOR SELECT TO authenticated
+USING (true);
+
+DROP POLICY IF EXISTS lotevacuna_modify_admin ON public.lotevacuna;
+CREATE POLICY lotevacuna_modify_admin ON public.lotevacuna
+FOR INSERT, UPDATE, DELETE TO authenticated
+USING (public.is_admin_user())
+WITH CHECK (public.is_admin_user());
+
+-- JORNADAS
+DROP POLICY IF EXISTS jornadas_select_all ON public.jornadas;
+CREATE POLICY jornadas_select_all ON public.jornadas
+FOR SELECT TO authenticated
+USING (true);
+
+DROP POLICY IF EXISTS jornadas_modify_admin ON public.jornadas;
+CREATE POLICY jornadas_modify_admin ON public.jornadas
+FOR INSERT, UPDATE, DELETE TO authenticated
+USING (public.is_admin_user())
+WITH CHECK (public.is_admin_user());
+
+-- IMPORTANT:
+-- Once you apply the secure policies, REMOVE the permissive allow_all_* policies below.
+
 -- 6) Helpful diagnostics queries you can run after applying
 -- List policies:
--- SELECT * FROM pg_policies WHERE schemaname='public' AND tablename IN ('perfil','staff');
+-- SELECT * FROM pg_policies WHERE schemaname='public' AND tablename IN ('perfil','staff','lotevacuna','jornadas');
 -- List columns:
--- SELECT column_name,data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='perfil';
--- List constraints for perfil:
--- SELECT conname, contype, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'public.perfil'::regclass;
+-- SELECT column_name,data_type FROM information_schema.columns WHERE table_schema='public' AND table_name='jornadas';
+-- List constraints for jornadas:
+-- SELECT conname, contype, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'public.jornadas'::regclass;
 
 -- IMPORTANT:
 -- After you verify client INSERT/UPSERT works with temporary policies, replace the permissive policies
@@ -80,86 +184,3 @@ CREATE POLICY allow_all_staff ON public.staff FOR ALL USING (true) WITH CHECK (t
 -- CREATE POLICY select_own ON public.perfil FOR SELECT USING (auth.uid() = auth_id::text);
 
 -- End of file
-
-Future<void> _register() async {
-  final supabase = Supabase.instance.client;
-  final email = emailController.text.trim();
-  final password = passwordController.text;
-  final nombres = nombreController.text.trim();
-  final apellidos = apellidoController.text.trim();
-  final cedula = cedulaController.text.trim();
-  final telefono = telefonoController.text.trim();
-  final direccion = direccionController.text.trim();
-  final sector = sectorSeleccionado; // 'Público' o 'Privado'
-  final role = 'veterinario'; // o toma del selector si aplica
-
-  try {
-    final authRes = await supabase.auth.signUp(
-      email: email,
-      password: password,
-      data: {
-        'nombres': nombres,
-        'apellidos': apellidos,
-        'cedula': cedula,
-        'telefono': telefono,
-        'direccion': direccion,
-        'sector': sector,
-      },
-    );
-
-    final user = authRes.user;
-    if (user == null) throw Exception('Registro fallido: usuario no creado');
-
-    // Crear fila en staff (usamos el mismo uuid del auth para id)
-    final staffInsert = await supabase.from('staff').insert({
-      'id': user.id,
-      'email': email,
-      'nombres': nombres,
-      'apellidos': apellidos,
-      'cedula': cedula,
-      'telefono': telefono,
-      'direccion': direccion,
-      'numero_colegio': null,
-      'role': role,
-      'is_admin': false,
-      'active': true,
-      'created_at': DateTime.now().toIso8601String(),
-    }).execute();
-
-    if (staffInsert.error != null) {
-      throw Exception('Error insertando staff: ${staffInsert.error!.message}');
-    }
-
-    // Crear perfil mínimo ligado al staff
-    final perfilInsert = await supabase.from('perfil').insert({
-      // si tu perfil usa user_id que apunta a staff.id:
-      'user_id': user.id,
-      'auth_id': user.id,
-      'nombres': nombres,
-      'apellidos': apellidos,
-      'telefono': telefono,
-      'direccion': direccion,
-      'rol': role,
-      'email': email,
-      'created_at': DateTime.now().toIso8601String(),
-      'meta': {'created_via': 'app'},
-    }).execute();
-
-    if (perfilInsert.error != null) {
-      throw Exception('Error insertando perfil: ${perfilInsert.error!.message}');
-    }
-
-    // Navegar / informar éxito
-    if (mounted) {
-      Navigator.of(context).pushReplacementNamed('/vet'); // o la ruta que corresponda
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Registro correcto')),
-      );
-    }
-  } catch (e) {
-    final msg = e is PostgrestException ? e.message : e.toString();
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-    }
-  }
-}

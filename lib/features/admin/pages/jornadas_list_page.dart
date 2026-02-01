@@ -71,7 +71,7 @@ class _JornadasListPageState extends State<JornadasListPage> {
                 Container(
                   height: 180,
                   decoration: const BoxDecoration(
-                    gradient: LinearGradient(colors: [Color(0xFFE39BD6), Color(0xFFB18AD1)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
+                    gradient: LinearGradient(colors: [Color(0xFF10B981), Color(0xFF059669)], begin: Alignment.topCenter, end: Alignment.bottomCenter),
                     borderRadius: BorderRadius.only(bottomLeft: Radius.circular(28), bottomRight: Radius.circular(28)),
                   ),
                   child: SafeArea(
@@ -174,7 +174,7 @@ class _JornadasListPageState extends State<JornadasListPage> {
                               alignment: Alignment.centerRight,
                               child: TextButton(
                                 onPressed: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const JornadaFormPage())),
-                                child: const Text('Añadir Jornada', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF5D3AE6))),
+                                child: const Text('Añadir Jornada', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF10B981))),
                               ),
                             ),
                           const SizedBox(height: 6),
